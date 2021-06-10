@@ -1,0 +1,646 @@
+---
+title: "Running title"
+author: "Matus Vojtek"
+date: "04/04/2021"
+output: html_document
+---
+```{r}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+
+```{r setup, include=FALSE}
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(RColorBrewer)
+library(cowplot)
+library(rstatix)
+
+# Set ggplot2 theme
+theme_set(theme_classic() +      # Font size 12
+            theme(panel.grid.major = element_blank(), # No major grid
+                  panel.grid.minor = element_blank(), # No minor grid
+                  strip.background = element_blank(), # Remove background
+                  legend.key = element_blank(), # Remove White box around legend
+                  plot.title = element_text(hjust = 0.5, # Center title
+                                            face = "bold",
+                                            size = 14), # Title bold
+                  plot.subtitle = element_text(hjust = 0.5), # Center subtitle
+                  plot.margin = margin(t = 2, r = 2, # Set margins around plots
+                                       b = 2, l = 2,
+                                       unit = "mm"),
+                  legend.key.size = unit(5.6, "mm"),
+                  axis.text = element_text(size = 12),
+                  axis.title = element_text(size = 13),
+                  strip.text.x = element_text(size = 13),
+                  legend.text = element_text(size = 13),
+                  legend.title = element_text(size = 13, face = "bold"),# Size of legend key
+            ))
+
+# Create color paletes
+Blues_pal6 <- brewer.pal(6, "Blues")
+Reds_pal6 <- brewer.pal(6, "Reds")
+Oranges_pal6 <- brewer.pal(6, "Oranges")
+Purples_pal6 <- brewer.pal(6, "Purples")
+Dox_cols <- c("gray", "dodgerblue3")
+
+# Import functions
+source("../src/bargraph_jitter.R")
+source("../src/bargraph_jitterdodge.R")
+```
+
+# Figure 1
+
+### Figure 1D: Size of PGCLC population in TgiN and TgiNO cells
+
+```{r message=FALSE, warning=FALSE}
+# Load data
+
+TgiNO_SSEA1CD61 <- read_csv("../Data/TgiN_iNO_PGCLC_D6_SSEA1_CD61.csv")
+
+# TgiN TgiNO PGCLC D6 SSEA+CD61 % plot
+
+TgiNO_SSEA1CD61.p <- TgiNO_SSEA1CD61 %>%
+  mutate(Dox = ifelse(Dox == 0, "-Dox", "+Dox")) %>%
+  bargraph_jitterdodge(x = Cell_line,
+                       y = Prop_dbl_pos,
+                       group = Dox,
+                       ylab = "% SSEA+CD61+ cells",
+                       title = "Size of PGCLC population", 
+                       fill_colors = Dox_cols) +
+  guides(fill = guide_legend(
+    override.aes = list(shape = NA))) +
+  theme(legend.position = c(0.8,0.8)) +
+  labs(fill = element_blank())
+```
+
+### Figure 1E: Changes of Otx2 mRNA in TgiN and TgiE cells
+
+```{r message=FALSE, warning=FALSE}
+# Load data
+TgiNiE_timecourse <- read_csv("../Data/TgiNiE_timecourse.csv")
+
+# Plot Otx2 response
+
+TgiNiE_timecourse.p <- TgiNiE_timecourse %>%
+  select(Sample, Rep, Otx2) %>%
+  separate(Sample, into = c("Cell_line", "Dox", "Time"), sep = " ") %>%
+  pivot_wider(names_from = Time, values_from = Otx2) %>%
+  group_by(Cell_line, Dox) %>% 
+  mutate(across(`0h`:`48h`, function(x) log2(x/`0h`))) %>% 
+  pivot_longer(cols = `0h`:`48h`,
+               names_to = "Time",
+               values_to = "Expression") %>%
+  mutate(Time = gsub("h", "", Time) %>% as.numeric(),
+         Cell_line = factor(Cell_line, levels = c("iN", "iE"))) %>%
+  group_by(Cell_line, Dox, Time) %>%
+  summarise(Mean = mean(Expression),
+            SD = sd(Expression)) %>%
+  ggplot() +
+  aes(x = Time, y = Mean,
+      group = paste0(Cell_line, Dox),
+      color = Cell_line) +
+  geom_line(aes( linetype = Dox )) + 
+  geom_point(aes(shape = Cell_line)) +
+  scale_color_manual(values = c("black", Reds_pal6[5])) +
+  scale_linetype_manual(values=c("dashed", "solid")) +
+  geom_errorbar(aes(ymin = Mean - SD,
+                    ymax = Mean + SD),
+                width = 2, size = 0.5) +
+  labs(y = expression(log[2] *"(mRNA / 0h)"),
+       title = "Otx2 expression after Nanog or Esrrb induction\n(EpiLCs)") +
+  scale_x_continuous(name="Time [h]", breaks = seq(0,48,6)) +
+  theme(legend.key.size = unit(1, "cm")) +
+  facet_wrap(~ Cell_line, nrow = 1, scales = "free") + 
+  scale_y_continuous(limits = c(-2, 2))
+```
+
+### Combine plots
+
+```{r message=FALSE, warning=FALSE}
+# Create combine plot
+
+f1_patch2 <- plot_grid(NULL, TgiNO_SSEA1CD61.p,
+                      labels = c("C", "D"),
+                      rel_widths = c(4,3))
+
+plot_grid(NULL, NULL, f1_patch2, TgiNiE_timecourse.p,
+          rel_heights = c(0.6, 0.6, 1, 1),
+          labels = c("A", "B", "", "", "D", "E"),
+          nrow = 4)
+
+ggsave("../Fig/Figure1.pdf", width = 18, height = 24, units = "cm")
+```
+
+# Figure S1
+
+### Figure S1A: Otx2 expression after Nanog/Esrrb induction (Festuccia et al. 2012)
+
+```{r message=FALSE, warning=FALSE}
+# Load data
+Festuccia <- read_csv("../Data/Otx2_expr_dNiN_dNiE_Festuccia2012.csv")
+
+# Create a plot
+Festuccia.p <- Festuccia %>%
+  group_by(Cell_line, Time) %>%
+  summarise(Mean = mean(Expression),
+            SD = sd(Expression)) %>%
+  mutate(Cell_line = factor(Cell_line,
+                            levels = c("iN", "iE"))) %>%
+  ggplot() +
+  aes(x = Time, y = Mean,
+      group = Cell_line,
+      color = Cell_line) +
+  geom_line() + 
+  geom_point(aes(shape = Cell_line)) +
+  scale_color_manual(values = c("black", Reds_pal6[5])) +
+  geom_errorbar(aes(ymin = Mean - SD,
+                    ymax = Mean + SD),
+                width = 0.5, size = 0.5) +
+  labs(y = "Expression\n(normalised tag counts)",
+       title = "Otx2 mRNA after doxycycline\ntreatment (ESCs)") +
+  scale_x_continuous(name="Time [h]",
+                     breaks = c(0,6,12)) +
+  theme(legend.position = c(0.2,0.2),
+        #legend.key.size = unit(0.4, "cm"),
+        legend.background = element_blank())
+
+```
+
+### Figure S1B: Nanog and Otx2 induction in TgiN and TgiNO cells
+
+```{r message=FALSE, warning=FALSE}
+# load data
+TgiNO_valid <- read_csv("../Data/TgiNO_ESC_qPCR_validation.csv")
+
+TgiNO_valid.p <- TgiNO_valid %>%
+  separate(Sample, into = c("Cell_line", "Dox"), sep = " ") %>%
+  mutate(Cell_line = factor(Cell_line,
+                            levels = c("Tgr", "TgiN", "TgiNO"))) %>%
+  bargraph_jitterdodge(x = Cell_line,
+                       y = Expression,
+                       group = Dox, 
+                       ylab = "mRNA / TBP",
+                       fill_colors = Dox_cols) +
+  facet_wrap(~ Gene, scales = "free") +
+  guides(fill = guide_legend(
+    override.aes = list(shape = NA))) +
+  theme(legend.position = c(0.7,0.8)) +
+  labs(fill = element_blank())
+
+```
+
+### Figure S1C: Induction of Esrrb and Nanog in TgiN and TgiE cells
+
+```{r message=FALSE, warning=FALSE}
+TgiNiE_timecourse_NanogEsrrb.p <- TgiNiE_timecourse %>%
+  separate(Sample, into = c("Cell_line", "Dox", "Time"), sep = " ") %>%
+  pivot_longer(cols = Blimp1:Nanog,
+               names_to = "Gene",
+               values_to = "Expression") %>%
+  pivot_wider(names_from = Time, values_from = Expression) %>%
+  group_by(Cell_line, Dox, Gene) %>% 
+  mutate(across(`0h`:`48h`, function(x) log2(x/`0h`))) %>% 
+  pivot_longer(cols = `0h`:`48h`, names_to = "Time",
+               values_to = "Expression" ) %>%
+  filter( Gene %in% c("Nanog", "Esrrb")) %>%
+  mutate(Time = gsub("h", "", Time) %>% as.numeric(),
+         Cell_line = factor(Cell_line, levels = c("iN", "iE")),
+         Gene = factor(Gene, levels = c("Nanog", "Esrrb"))) %>%
+  group_by(Cell_line, Dox, Time, Gene) %>%
+  summarise(Mean = mean(Expression),
+            SD = sd(Expression)) %>%
+  
+  ggplot() +
+  aes(x = Time, y = Mean,
+      group = paste0(Cell_line, Dox),
+      color = Cell_line) +
+  geom_line(aes( linetype = Dox )) + 
+  geom_point(aes(shape = Cell_line)) +
+  scale_color_manual(values = c("black", Reds_pal6[5])) +
+  scale_linetype_manual(values=c("dashed", "solid")) +
+  geom_errorbar(aes(ymin = Mean - SD,
+                    ymax = Mean + SD),
+                width = 2, size = 0.5) +
+  labs(y = expression(log[2] *"(mRNA / 0h)")) +
+  scale_x_continuous(name="Time [h]",
+                     breaks = seq(0,48,6)) +
+  #theme(legend.key.size = unit(0.4, "cm")) +
+  facet_wrap(~ Gene, nrow = 1, scales = "free") +
+  scale_y_continuous(limits = c(-2.5, 7.5))
+```
+
+### Combine figures
+
+```{r}
+patch <- plot_grid(Festuccia.p, TgiNO_valid.p, labels = c("A", "B"),
+                   rel_widths = c(0.8, 1))
+
+plot_grid(patch, TgiNiE_timecourse_NanogEsrrb.p, nrow = 2, labels = c("", "C"))
+
+ggsave("../Fig/FigureS1.pdf", width = 18, height = 14, units = "cm")
+```
+
+# Figure 2
+
+### Figure 2A: PGC markers after Nanog/Esrrb induction
+
+```{r message=FALSE, warning=FALSE}
+TgiNiE_timecourse_PGC.p <- TgiNiE_timecourse %>%
+  separate(Sample, into = c("Cell_line", "Dox", "Time"), sep = " ") %>%
+  pivot_longer(cols = Blimp1:Nanog,
+               names_to = "Gene",
+               values_to = "Expression") %>%
+  pivot_wider(names_from = Time, values_from = Expression) %>%
+  group_by(Cell_line, Dox, Gene) %>% 
+  mutate(across(`0h`:`48h`, function(x) log2(x/`0h`))) %>% 
+  pivot_longer(cols = `0h`:`48h`, names_to = "Time",
+               values_to = "Expression" ) %>%
+  filter( Gene %in% c("Ap2g", "Blimp1", "Prdm14")) %>%
+  mutate(Time = gsub("h", "", Time) %>% as.numeric(),
+         Cell_line = factor(Cell_line, levels = c("iN", "iE")),
+         Gene = factor(Gene,
+                       levels = c("Blimp1", "Ap2g", "Prdm14"))) %>%
+  group_by(Cell_line, Dox, Time, Gene) %>%
+  summarise(Mean = mean(Expression),
+            SD = sd(Expression)) %>%
+  
+  ggplot() +
+  aes(x = Time, y = Mean,
+      group = paste0(Cell_line, Dox),
+      color = Cell_line) +
+  geom_line(aes( linetype = Dox )) + 
+  geom_point(aes(shape = Cell_line)) +
+  scale_color_manual(values = c("black", "red")) +
+  scale_linetype_manual(values=c("dashed", "solid")) +
+  geom_errorbar(aes(ymin = Mean - SD,
+                    ymax = Mean + SD),
+                width = 2, size = 0.5) +
+  labs(y = expression(log[2] *"(mRNA / 0h)")) +
+  scale_x_continuous(name="Time [h]",
+                     breaks = seq(0,48,6)) +
+  theme(legend.key.size = unit(1, "cm"),
+        legend.position = "bottom") +
+  facet_wrap(~ Gene, nrow = 1, scales = "free")
+```
+
+### Figure 2C: PGCLC population size TgiN TgiN cells
+
+Is TgiN+Dox significantly different than TgiE+Dox sample ?
+```{r message=FALSE, warning=FALSE}
+# load data
+TgiNiE_PGCLC_D6 <- read_csv("../Data/TgiNiE_PGCLC_D6_SSEA1_CD61.csv")
+
+# t-test
+TgiNiE_PGCLC_D6.stats <- TgiNiE_PGCLC_D6 %>%
+  filter(Sample %in% c("iN +dox", "iE +dox")) %>%
+  t_test(Dbl_pos ~ Sample) %>%
+  add_xy_position()
+```
+
+
+```{r message=FALSE, warning=FALSE}
+TgiNiE_PGCLC_D6.p <- TgiNiE_PGCLC_D6 %>%
+  separate(Sample, into = c("Cell_line", "Dox"),
+           sep = " ") %>%
+  mutate(Cell_line = factor(Cell_line, c("iN", "iE"))) %>%
+  bargraph_jitterdodge(x = Cell_line,
+                       y = Dbl_pos,
+                       group = Dox,
+                       ylab = "% SSEA+CD61+ cells",
+                       title = "Size of PGCLC population", 
+                       fill_colors = Dox_cols) +
+  guides(fill = guide_legend(
+    override.aes = list(shape = NA))) +
+  labs(fill = element_blank())
+```
+
+### Figure 2D: Expression of PGC markers in TgiN, TgiE cells D6
+
+```{r message=FALSE, warning=FALSE}
+# Load data
+TgiNiE_qPCR_D6 <- read_csv("../Data/TgiNiE_PGCLC_D6_qPCR.csv")
+
+# Create color pallete
+
+BlueRed_pal6 <- c(Blues_pal6[c(1,3,6)],
+                  Reds_pal6[c(1,3,6)])
+```
+
+
+Is effect of Nanog at day 6 significantly different than effect of Esrrb?
+
+```{r message=FALSE, warning=FALSE}
+TgiNiE_qPCR_D6.stats <- TgiNiE_qPCR_D6 %>%
+    pivot_longer(cols = Blimp1:Esrrb,
+                 names_to = "Gene",
+                 values_to = "Expression") %>% 
+    filter(Gene %in% c("Ap2r", "Blimp1", "Prdm14"),
+           Sample %in% c("TgiN (D6) +dox", "TgiE (D6) +dox")) %>%
+    group_by(Gene) %>% 
+    t_test(Expression ~ Sample) %>% 
+  adjust_pvalue(method = "fdr") %>% 
+  add_significance() %>%
+  add_xy_position(scales = "free_y", step.increase = 0.1)
+```
+
+```{r message=FALSE, warning=FALSE}
+# Plot with stats
+TgiNiE_qPCR_D6 %>%
+    pivot_longer(cols = Blimp1:Esrrb,
+                 names_to = "Gene",
+                 values_to = "Expression") %>%
+    filter(Gene %in% c("Ap2r", "Blimp1", "Prdm14")) %>%
+    mutate(Sample = factor(
+        Sample,
+        levels = c("TgiN (D0)",
+                   "TgiN (D6)",
+                   "TgiN (D6) +dox",
+                   "TgiE (D0)",
+                   "TgiE (D6)",
+                   "TgiE (D6) +dox")
+    )) %>%
+    
+    bargraph_jitter(x = Sample,
+                    y = Expression,
+                    group = Sample,
+                    ylab = "mRNA / TBP", 
+                    fill_colors = BlueRed_pal6)  +
+    facet_wrap(~ Gene, scales = "free_y") +
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_blank(),
+          axis.ticks.x = element_blank(),
+          ) + 
+  stat_pvalue_manual(TgiNiE_qPCR_D6.stats, label = "p.adj.signif",
+                     tip.length = 0, 
+        hide.ns = TRUE, xmin = "group1", xmax = "group2") +
+  geom_blank(data = data.frame(
+    "Gene" = c("Ap2r", "Blimp1", "Prdm14"),
+    "Expression" = c(8,1,1.2),
+    "Sample" = rep("TgiN (D0)", 3)))
+```
+
+
+```{r}
+# Create figure
+TgiNiE_qPCR_D6.p <- TgiNiE_qPCR_D6 %>%
+  pivot_longer(cols = Blimp1:Esrrb,
+               names_to = "Gene",
+               values_to = "Expression") %>%
+  filter(Gene %in% c("Ap2r", "Blimp1", "Prdm14")) %>%
+  mutate(Sample = factor(
+    Sample,
+    levels = c("TgiN (D0)",
+               "TgiN (D6)",
+               "TgiN (D6) +dox",
+               "TgiE (D0)",
+               "TgiE (D6)",
+               "TgiE (D6) +dox")
+  )) %>%
+  
+  bargraph_jitter(x = Sample,
+                  y = Expression,
+                  group = Sample,
+                  ylab = "mRNA / TBP", 
+                  fill_colors = BlueRed_pal6) +
+  facet_wrap(~ Gene, scales = "free_y") +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        #legend.key.size = unit(0.4, "cm")
+        )
+```
+
+### Combine figures
+
+```{r}
+f2_patch <- plot_grid(NULL, TgiNiE_PGCLC_D6.p,
+                     rel_widths = c(1, 0.8), labels = c("B", "C")) 
+
+plot_grid(TgiNiE_timecourse_PGC.p, f2_patch, TgiNiE_qPCR_D6.p,
+          labels = c("A", "", "D"), nrow = 3, rel_heights  = c(1,0.8,0.8))
+
+
+ggsave("../Fig/Figure2.pdf", width = 24, height = 22, units = "cm")
+
+```
+
+# Figure 3
+
+### Figure 3B: Otx2 het. iN, iE EpilCs
+
+```{r}
+# Load data
+Ohet_EpiLC_qPCR <- read_csv("../Data/Otx2Het_iNiE_EpiLC_qPCR.csv")
+
+# Create plot
+Ohet_EpiLC_qPCR.p <- Ohet_EpiLC_qPCR %>%
+  group_by(Gene) %>%
+  mutate(across(starts_with("Otx2"),
+                function(x) (x/mean(`Otx2+/+`)))) %>% # Normalise to Tg2a
+  pivot_longer(cols = starts_with("Otx2"),
+               values_to = "Expression",
+               names_to = "Cell_line") %>%
+  mutate(Cell_line = factor(Cell_line,
+                            levels = c(
+                              "Otx2+/+", "Otx2+/- iN c5",
+                              "Otx2+/- iE c1", "Otx2+/- iE c10"))) %>%
+  filter(Gene %in% c("Fgf5", "Pou5f1", "Otx2")) %>%
+  bargraph_jitterdodge(x = Gene,
+                       y = Expression,
+                       group = Cell_line,
+                       ylab = "Relative expression",
+                       title = "Expression in EpiLCs",
+                       fill_colors = c(
+                         "grey",
+                         Blues_pal6[5],
+                         Oranges_pal6[4],
+                         Reds_pal6[5]
+                       )) + 
+  guides(fill = guide_legend(override.aes = list(shape = NA),
+                             ncol = 2)) +
+  theme(legend.position = c(0.6,1),
+        legend.key.size = unit(0.4, "cm")) +
+  labs(fill = element_blank())
+```
+
+### Figure 3C: Size of PGCLC population Otx2+/- cells
+
+```{r}
+# Load data
+Ohet_PGCLC_FACS <- read_csv("../Data/OtxHet_iNiE_PGCLC_D6_SSEA_CD61.csv")
+
+# Create plot
+Ohet_PGCLC_FACS.p <- Ohet_PGCLC_FACS %>%
+  mutate(Dox = ifelse(Dox == 0, "-Dox", "+Dox"),
+         Cell_line = case_when(
+           Cell_line == "iN c5" ~ "Otx2+/- iN c5",
+           Cell_line == "iE c1" ~ "Otx2+/- iE c1",
+           Cell_line == "iE c10" ~ "Otx2+/- iE c10"),
+         Cell_line = factor(Cell_line,
+                            levels = c("Otx2+/- iN c5",
+                                       "Otx2+/- iE c1",
+                                       "Otx2+/- iE c10"))) %>%
+  bargraph_jitterdodge(x = Cell_line,
+                       y = Dbl_pos,
+                       group = Dox,
+                       errorbar = "SEM",
+                       fill_colors = Dox_cols) +
+  labs(y = "% SSEA1+CD61+ cells",
+       title = "Size of PGCLC population",
+       fill = element_blank()) +
+  guides(fill = guide_legend(
+    override.aes = list(shape = NA))) +
+  theme(legend.position = c(0.5,0.9),
+        legend.key.size = unit(0.4, "cm"),
+        legend.direction = "horizontal")
+
+```
+
+### Figure 3D: % of dPE::GFP+ cells
+```{r}
+# Load data
+Ohet_PGCLC_dPEGFP <- read_csv("../Data/OtxHet_iNiE_PGCLC_D6_dPEGFP.csv")
+
+# Create plot
+Ohet_PGCLC_dPEGFP.p <- Ohet_PGCLC_dPEGFP %>%
+  mutate(Dox = ifelse(Dox == 0, "-Dox", "+Dox"),
+         Cell_line = case_when(
+           Cell_line == "iN c5" ~ "Otx2+/- iN c5",
+           Cell_line == "iE c1" ~ "Otx2+/- iE c1",
+           Cell_line == "iE c10" ~ "Otx2+/- iE c10"),
+         Cell_line = factor(Cell_line,
+                            levels = c("Otx2+/- iN c5",
+                                       "Otx2+/- iE c1",
+                                       "Otx2+/- iE c10"))) %>%
+  bargraph_jitterdodge(x = Cell_line,
+                       y = GFP,
+                       group = Dox,
+                       errorbar = "SEM",
+                       fill_colors = Dox_cols) +
+  labs(y = "% GFP+ cells",
+       title = expression(
+         bold(
+         paste("Activity of ",
+               bolditalic("Pou5f1"),
+               " distal enhancer"))),
+       fill = element_blank()) +
+  guides(fill = guide_legend(
+    override.aes = list(shape = NA))) +
+  theme(legend.position = c(0.5,0.9),
+        legend.key.size = unit(0.4, "cm"),
+        legend.direction = "horizontal",
+        title = element_text(face = "bold"))
+```
+
+### Figure 3E: Expression of PGC markers in Otx2+/- iN, iE PGCLCs
+
+```{r}
+# Load data
+Ohet_PGCLC_qPCR <- read_csv("../Data/OtxHet_iNiE_PGCPC_D6_qPCR.csv")
+
+# Create color pallete
+BlueOrangeRed_pal2 <- c(Blues_pal6[c(2,5)],
+                        Oranges_pal6[c(2,4)],
+                        Reds_pal6[c(2,5)])
+
+# Create plot
+
+Ohet_PGCLC_qPCR.p <- Ohet_PGCLC_qPCR %>%
+  mutate(Sample = factor(
+    Sample,
+    levels = c("iN -Dox",
+               "iN +Dox",
+               "iEc1 -Dox",
+               "iEc1 +Dox",
+               "iEc10 -Dox",
+               "iEc10 +Dox")
+  )) %>%
+  bargraph_jitter(x = Sample,
+                  y = Expression,
+                  group = Sample,
+                  ylab = "mRNA / TBP",
+                  title = "Expression at day 6",
+                  fill_colors = BlueOrangeRed_pal2) +
+  facet_wrap(~ Gene,
+             scales = "free", strip.position="bottom") +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.key.size = unit(0.4, "cm"),
+        strip.placement = "outside",
+        legend.position = "top") +
+  guides(fill=guide_legend(ncol=3)) +
+  labs(fill = element_blank())
+```
+
+### Combine figures
+
+```{r}
+
+plot_grid(plot_grid(NULL, Ohet_EpiLC_qPCR.p, labels = c("A", "B")),
+          plot_grid(Ohet_PGCLC_FACS.p, Ohet_PGCLC_dPEGFP.p, labels = c("C", "D")),
+          plot_grid(Ohet_PGCLC_qPCR.p, NULL, rel_widths = c(2,1),
+                    labels = c("E", "F")),
+          nrow = 3)
+
+ggsave("../Fig/Figure3.pdf", width = 19, height = 20, units = "cm")
+```
+
+# Figure S3
+
+### Expression at D2 of PGCLC differentiation (Otx2+/- cells)
+
+```{r}
+# Load data
+OHet_qPCR_D2 <- read_csv("../Data/Otx2Het_iNiE_GK15_D2_qPCR.csv")
+
+# Create plot
+OHet_qPCR_D2 %>%
+  #separate(col = Sample, into = c("Cell_line", "Dox"), sep = " ") %>%
+  
+  pivot_wider(names_from = "Sample", values_from = "Expression") %>%
+  group_by(Gene) %>%
+  mutate(
+    across(`Tg2a -Dox`:`iEc10 +Dox`,
+           function(x) (x/mean(`Tg2a +Dox`) # Normalise to Tg2a +Dox sample
+           ))) %>% 
+  pivot_longer(cols = `Tg2a -Dox`:`iEc10 +Dox`,
+               values_to = "Expression",
+               names_to = "Sample") %>%
+  mutate(Sample = factor(
+    Sample,
+    levels = c("Tg2a -Dox",
+               "Tg2a +Dox",
+               "iN -Dox",
+               "iN +Dox",
+               "iEc1 -Dox",
+               "iEc1 +Dox",
+               "iEc10 -Dox",
+               "iEc10 +Dox")),
+    Gene = factor(
+      Gene,
+      levels = c("Nanog", "Esrrb", "Blimp1", "Ap2r", "Prdm14"))
+  ) %>%
+  bargraph_jitter(x = Sample,
+                  y = Expression,
+                  group = Sample,
+                  ylab = "Relative expression",
+                  title = "Expression at day 2",
+                  fill_colors = c("gray60", "gray40", BlueOrangeRed_pal2)) +
+  facet_wrap(~ Gene,
+             scales = "free", strip.position="bottom", nrow = 1) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.key.size = unit(0.4, "cm"),
+        strip.placement = "outside",
+        legend.position = "top") +
+  guides(fill=guide_legend(ncol=4)) +
+  labs(fill = element_blank())
+
+ggsave("../Fig/FigureS3.pdf", width = 20, height = 10, units = "cm")
+```
+
