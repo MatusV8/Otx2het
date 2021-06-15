@@ -1,20 +1,39 @@
 ---
-title: "Differential repression of Otx2 underlies the capacity of NANOG and ESRRB to induce germline entry"
-subtitle: "Supplementary analysis code"
-author: "Matúš Vojtek, Jingchao Zhang, Juanjuan Sun, Man Zhang and Ian Chambers"
 output: 
-  prettydoc::html_pretty:
-    theme: cayman
-    highlight: github
+  github_document:
     toc: true
 toc-title: "Table of Contents"
 ---
+
+## Differential repression of Otx2 underlies the capacity of NANOG and ESRRB to induce germline entry (Supplementary analysis code)
+
+***Matúš Vojtek, Jingchao Zhang, Juanjuan Sun, Man Zhang and Ian Chambers***
+
+[doi.org/10.1101/2021.06.14.448276](https://doi.org/10.1101/2021.06.14.448276)
+
+***
+
+This is a code to reproduce analysis and figures in the manuscript. You can download the data and the code for the analysis either by clicking [here](https://github.com/MatusV8/Otx2het/archive/refs/heads/main.zip), or via bash command line
+
+`git clone https://github.com/MatusV8/Otx2het.git` and reproduce the analysis on your local machine.
+
+The code to reproduce the figures can be seen below.
+
+## Folder structure
+
+-   ***Data/*** - all data required for analysis.
+-   ***Fig/*** - folder where the figures will be saved.
+-   ***src/*** - Custom R functions.
+-   ***Analysis.Rmd*** - Rmarkdown file which contains all code required for the analysis.
+
+
 
 ```{r include=FALSE}
 knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 ```
 
-# Setup
+## Setup
+
 ```{r setup, include=TRUE}
 library(readr)
 library(dplyr)
@@ -69,10 +88,9 @@ dir.create("Fig")
 
 ```
 
-# Figure 1
+## Figure 1
 
 ### Figure 1D: Effect of Nanog or Esrrb induction on SSEA1, CD61 expression
-
 
 ```{r message=FALSE, warning=FALSE}
 # load data
@@ -194,7 +212,7 @@ ggsave("Fig/Figure1.pdf", width = 20, height = 25, units = "cm")
 
 ```
 
-# Figure S1B: Induction levels of *Nanog* and *Esrrb* in TgiN, TgiE cells
+## Figure S1B: Induction levels of *Nanog* and *Esrrb* in TgiN, TgiE cells
 
 ```{r message=FALSE, warning=FALSE, fig.height=6.14, fig.width= 6.9}
 TgiNiE_timecourse_NanogEsrrb.p <- TgiNiE_timecourse %>%
@@ -245,7 +263,7 @@ plot_grid(NULL, TgiNiE_timecourse_NanogEsrrb.p,
 ggsave("Fig/FigureS1.pdf", width = 174, height = 156, units = "mm")
 ```
 
-# Figure 2
+## Figure 2
 
 ### Figure 2A: *Otx2* expression after Nanog or Esrrb induction (Festuccia et al. 2012)
 
@@ -359,7 +377,7 @@ plot_grid(F2_patch1, F2_patch2, nrow = 2, rel_heights = c(0.8,1))
 ggsave("Fig/Figure2.pdf", width = 267, height = 165, units = "mm")
 ```
 
-# Figure S2: Induction levels of *Nanog* and *Otx2* in TgiNG and TgiNO cells
+## Figure S2: Induction levels of *Nanog* and *Otx2* in TgiNG and TgiNO cells
 
 ```{r message=FALSE, warning=FALSE, fig.width=6.81,fig.height=2.48}
 # load data
@@ -384,7 +402,7 @@ TgiNO_valid %>%
 ggsave("Fig/FigureS2.pdf", width = 173, height = 63, units = "mm")
 ```
 
-# Figure 3
+## Figure 3
 
 ### Figure 3B: Expression of EpiLC markers in *Otx2^+/-^* iN, iE EpiLCs
 
@@ -404,7 +422,6 @@ Ohet_EpiLC_qPCR.p <- Ohet_EpiLC_qPCR %>%
                             levels = c(
                               "Otx2+/+", "Otx2+/- iN c5",
                               "Otx2+/- iE c1", "Otx2+/- iE c10"))) %>%
-  filter(Gene %in% c("Fgf5", "Pou5f1", "Otx2")) %>%
   bargraph_jitterdodge(x = Gene,
                        y = Expression,
                        group = Cell_line,
@@ -525,9 +542,7 @@ plot_grid(
 ggsave("Fig/Figure3.pdf", width = 188, height = 200, units = "mm")
 ```
 
-# Figure S3
-
-### Expression at day 2 of PGCLC differentiation (*Otx2^+/-^* cells)
+## Figure S3: Expression at day 2 of PGCLC differentiation (*Otx2^+/-^* cells)
 
 ```{r fig.height=3.54, fig.width= 7.83}
 # Load data
@@ -577,8 +592,8 @@ OHet_qPCR_D2 %>%
 ggsave("Fig/FigureS3.pdf", width = 19.9, height = 9, units = "cm")
 ```
 
-# Session info
+## Session info
+
 ```{r}
 sessionInfo()
 ```
-
