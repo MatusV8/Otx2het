@@ -35,13 +35,14 @@ knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 ## Setup
 
 ```{r setup, include=TRUE}
-library(readr)
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-library(RColorBrewer)
-library(cowplot)
-library(rstatix)
+require(readr)
+require(dplyr)
+require(tidyr)
+require(ggplot2)
+require(RColorBrewer)
+require(cowplot)
+require(rstatix)
+require(ggpubr)
 
 # Set ggplot2 theme
 theme_set(theme_classic() +      # Font size 12
@@ -57,12 +58,18 @@ theme_set(theme_classic() +      # Font size 12
                                        b = 3, l = 3,
                                        unit = "mm"),
                   legend.key.size = unit(5.6, "mm"),
-                  axis.text = element_text(size = 12, color = "black"),
-                  axis.title = element_text(size = 13, color = "black"),
-                  strip.text.x = element_text(size = 13, color = "black"),
-                  legend.text = element_text(size = 13, color = "black"),
-                  legend.title = element_text(size = 13, color = "black",
+                  axis.text = element_text(size = 12,
+                                           color = "black"),
+                  axis.title = element_text(size = 13,
+                                            color = "black"),
+                  strip.text.x = element_text(size = 13,
+                                              color = "black"),
+                  legend.text = element_text(size = 13,
+                                             color = "black"),
+                  legend.title = element_text(size = 13,
+                                              color = "black",
                                               face = "bold"), # Size of legend key
+                  legend.background= element_blank() # remove background
             ))
 
 # Create colour palettes
@@ -96,6 +103,21 @@ dir.create("Fig")
 # load data
 TgiNiE_PGCLC_D6 <- read_csv("Data/TgiNiE_PGCLC_D6_SSEA1_CD61.csv")
 
+# Calculate statistics
+TgiNiE_PGCLC_D6.stats <- TgiNiE_PGCLC_D6 %>%
+  separate(Sample, into = c("Cell_line", "Dox"),
+           sep = " ") %>%
+  mutate(Cell_line = factor(Cell_line, c("TgiN", "TgiE"))) %>%
+  group_by(Cell_line) %>%
+  t_test(Dbl_pos ~ Dox, ref.group = "-dox", p.adjust.method = "none") %>% 
+  adjust_pvalue(method ="fdr") %>%
+  add_significance() %>%
+  add_xy_position() %>%
+  mutate(xmin = c(0.8, 1.8),
+         xmax = c(1.2, 2.2))
+TgiNiE_PGCLC_D6.stats
+
+# Generate plot
 TgiNiE_PGCLC_D6.p <- TgiNiE_PGCLC_D6 %>%
   separate(Sample, into = c("Cell_line", "Dox"),
            sep = " ") %>%
@@ -108,7 +130,11 @@ TgiNiE_PGCLC_D6.p <- TgiNiE_PGCLC_D6 %>%
   guides(fill = guide_legend(
     override.aes = list(shape = NA))) +
   labs(fill = element_blank()) +
-  theme(legend.position = c(0.15, 0.9))
+  theme(legend.position = "top",
+        legend.direction = "horizontal") +
+    stat_pvalue_manual(TgiNiE_PGCLC_D6.stats,
+                       label = "p.adj.signif",
+                       tip.length = 0)
 ```
 
 ### Figure 1E: Effect of Nanog or Esrrb induction on expression of PGC markers (day 6)
@@ -116,6 +142,24 @@ TgiNiE_PGCLC_D6.p <- TgiNiE_PGCLC_D6 %>%
 ```{r message=FALSE, warning=FALSE}
 # Load data
 TgiNiE_qPCR_D6 <- read_csv("Data/TgiNiE_PGCLC_D6_qPCR.csv")
+
+# Calculate statistics
+TgiNiE_qPCR_D6.stats <- TgiNiE_qPCR_D6 %>%
+  pivot_longer(cols = Blimp1:Esrrb,
+               names_to = "Gene",
+               values_to = "Expression") %>%
+  filter(Gene %in% c("Ap2r", "Blimp1", "Prdm14")) %>%
+  separate(Sample, into = c("Cell_line", "Day", "Dox") ) %>%
+  filter(Day == "D6") %>%
+  group_by(Gene, Cell_line) %>%
+  t_test(Expression ~ Dox, ref.group = "", p.adjust.method = "none") %>% 
+  adjust_pvalue(method ="fdr") %>%
+  add_significance() %>%
+  add_xy_position(scales = "free") %>%
+  mutate(xmin = rep(c(5, 2), 3),
+         xmax = rep(c(6, 3),3))
+
+TgiNiE_qPCR_D6.stats
 
 # Create plot
 TgiNiE_qPCR_D6.p <- TgiNiE_qPCR_D6 %>%
@@ -142,7 +186,10 @@ TgiNiE_qPCR_D6.p <- TgiNiE_qPCR_D6 %>%
   theme(axis.title.x = element_blank(),
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank()
-        )
+        ) +
+  stat_pvalue_manual(TgiNiE_qPCR_D6.stats, label = "p.adj.signif", hide.ns = T,
+                     tip.length = 0,
+                     bracket.nudge.y = c(0.01, -0.1))
 
 ```
 
@@ -152,7 +199,29 @@ TgiNiE_qPCR_D6.p <- TgiNiE_qPCR_D6 %>%
 # Load data
 TgiNiE_timecourse <- read_csv("Data/TgiNiE_timecourse.csv")
 
+# Calculate stats
+TgiNiE_timecourse %>%
+  separate(Sample, into = c("Cell_line", "Dox", "Time"), sep = " ") %>%
+  pivot_longer(cols = Blimp1:Nanog,
+               names_to = "Gene",
+               values_to = "Expression") %>%
+  pivot_wider(names_from = Time, values_from = Expression) %>%
+  group_by(Cell_line, Dox, Gene) %>% 
+  mutate(across(`0h`:`48h`, function(x) log2(x/`0h`))) %>% 
+  pivot_longer(cols = `0h`:`48h`, names_to = "Time",
+               values_to = "Expression" ) %>%
+  filter( Gene %in% c("Ap2g", "Blimp1", "Prdm14")) %>%
+  mutate(Time = gsub("h", "", Time) %>% as.numeric(),
+         Cell_line = factor(
+           Cell_line, levels = c("TgiN", "TgiE")))  %>%
+  group_by(Cell_line, Gene, Time) %>%
+  pairwise_t_test(Expression ~ Dox,
+                  ref.group = "-dox",
+         p.adjust.method = "none") %>%
+  adjust_pvalue(method = "fdr") %>%
+  filter(p.adj < 0.05)
 
+# Create plot
 TgiNiE_timecourse_PGC.p <- TgiNiE_timecourse %>%
   separate(Sample, into = c("Cell_line", "Dox", "Time"), sep = " ") %>%
   pivot_longer(cols = Blimp1:Nanog,
@@ -204,7 +273,7 @@ f2_patch <- plot_grid(NULL, TgiNiE_PGCLC_D6.p,
                      rel_widths = c(1, 0.9), labels = c("C", "D")) 
 
 plot_grid(NULL, f2_patch, TgiNiE_qPCR_D6.p, TgiNiE_timecourse_PGC.p,
-          labels = c("A", "C", "", "F"),
+          labels = c("A", "C", "E", "F"),
           nrow = 4, rel_heights  = c(30,  55, 49, 62))
 
 
@@ -215,12 +284,16 @@ ggsave("Fig/Figure1.pdf", width = 20, height = 25, units = "cm")
 ## Figure S1B: Induction levels of *Nanog* and *Esrrb* in TgiN, TgiE cells
 
 ```{r message=FALSE, warning=FALSE, fig.height=6.14, fig.width= 6.9}
+# Create timecourse plot
 TgiNiE_timecourse_NanogEsrrb.p <- TgiNiE_timecourse %>%
-  separate(Sample, into = c("Cell_line", "Dox", "Time"), sep = " ") %>%
+  separate(Sample,
+           into = c("Cell_line", "Dox", "Time"),
+           sep = " ") %>%
   pivot_longer(cols = Blimp1:Nanog,
                names_to = "Gene",
                values_to = "Expression") %>%
-  pivot_wider(names_from = Time, values_from = Expression) %>%
+  pivot_wider(names_from = Time,
+              values_from = Expression) %>%
   group_by(Cell_line, Dox, Gene) %>% 
   mutate(across(`0h`:`48h`, function(x) log2(x/`0h`))) %>% 
   pivot_longer(cols = `0h`:`48h`, names_to = "Time",
@@ -232,7 +305,6 @@ TgiNiE_timecourse_NanogEsrrb.p <- TgiNiE_timecourse %>%
   group_by(Cell_line, Dox, Time, Gene) %>%
   summarise(Mean = mean(Expression),
             SD = sd(Expression)) %>%
-  
   ggplot() +
   aes(x = Time, y = Mean,
       group = paste0(Cell_line, Dox),
@@ -271,6 +343,14 @@ ggsave("Fig/FigureS1.pdf", width = 174, height = 156, units = "mm")
 # Load data
 Festuccia <- read_csv("Data/Otx2_expr_dNiN_dNiE_Festuccia2012.csv")
 
+# Calculate stats
+Festuccia %>%
+  group_by(Cell_line) %>%
+  t_test(Expression ~ Time,
+         p.adjust.method = "none",
+         ref.group = "0") %>%
+  adjust_pvalue(method = "fdr")
+
 # Create a plot
 Festuccia.p <- Festuccia %>%
   group_by(Cell_line, Time) %>%
@@ -302,8 +382,29 @@ Festuccia.p <- Festuccia %>%
 
 ```{r message=FALSE, warning=FALSE}
 
-# Plot Otx2 response
+# Calculate stats
+TgiNiE_timecourse %>%
+  select(Sample, Rep, Otx2) %>%
+  separate(Sample, into = c("Cell_line", "Dox", "Time"), sep = " ") %>%
+  pivot_wider(names_from = Time, values_from = Otx2) %>%
+  group_by(Cell_line, Dox) %>% 
+  mutate(across(`0h`:`48h`, function(x) log2(x/`0h`))) %>% 
+  pivot_longer(cols = `0h`:`48h`,
+               names_to = "Time",
+               values_to = "Expression" ) %>%
+  mutate(Time = gsub("h", "", Time) %>% as.numeric(),
+         Cell_line = factor(
+           Cell_line, levels = c("TgiN", "TgiE")))  %>%
+  group_by(Cell_line, Time) %>%
+  pairwise_t_test(Expression ~ Dox,
+         ref.group = "-dox",
+         p.adjust.method = "none") %>%
+  adjust_pvalue(method ="fdr") %>%
+  drop_na() %>%
+    add_significance() %>%
+    add_xy_position()
 
+# Plot Otx2 response
 TgiNiE_timecourse.p <- TgiNiE_timecourse %>%
   select(Sample, Rep, Otx2) %>%
   separate(Sample, into = c("Cell_line", "Dox", "Time"), sep = " ") %>%
@@ -345,8 +446,19 @@ TgiNiE_timecourse.p <- TgiNiE_timecourse %>%
 
 ```{r message=FALSE, warning=FALSE}
 # Load data
-
 TgiNO_SSEA1CD61 <- read_csv("Data/TgiNG_iNO_PGCLC_D6_SSEA1_CD61.csv")
+
+# Calcualte stats
+TgiNO_SSEA1CD61 %>%
+  mutate(Dox = ifelse(Dox == 0, "-Dox", "+Dox")) %>%
+  group_by(Cell_line) %>%
+  t_test(Prop_dbl_pos ~ Dox,
+         ref.group = "-Dox", 
+         p.adjust.method = "none") %>%
+  adjust_pvalue(method = "fdr") %>%
+    add_significance() %>%
+    add_xy_position()
+  
 
 # TgiN, TgiNO PGCLC D6 SSEA+CD61 % plot
 
@@ -383,6 +495,20 @@ ggsave("Fig/Figure2.pdf", width = 267, height = 165, units = "mm")
 # load data
 TgiNO_valid <- read_csv("Data/TgiNO_ESC_qPCR_validation.csv")
 
+# Calculate stats
+TgiNO_valid %>%
+  separate(Sample, into = c("Cell_line", "Dox"), sep = " ") %>%
+  mutate(Cell_line = factor(Cell_line,
+                            levels = c("TgiR", "TgiNG", "TgiNO"))) %>%
+  group_by(Cell_line, Gene) %>%
+  t_test(Expression ~ Dox,
+         ref.group = "-Dox",
+         p.adjust.method = "none") %>%
+  adjust_pvalue(method = "fdr") %>%
+    add_significance() %>%
+    add_xy_position()
+
+# Create plot
 TgiNO_valid %>%
   separate(Sample, into = c("Cell_line", "Dox"), sep = " ") %>%
   mutate(Cell_line = factor(Cell_line,
@@ -409,6 +535,27 @@ ggsave("Fig/FigureS2.pdf", width = 173, height = 63, units = "mm")
 ```{r}
 # Load data
 Ohet_EpiLC_qPCR <- read_csv("Data/Otx2Het_iNiE_EpiLC_qPCR.csv")
+
+# Calculate stats
+Ohet_EpiLC_qPCR.stats <- Ohet_EpiLC_qPCR %>%
+  group_by(Gene) %>%
+  mutate(across(starts_with("Otx2"),
+                function(x) (x/mean(`Otx2+/+`)))) %>% # Normalise to Tg2a
+  pivot_longer(cols = starts_with("Otx2"),
+               values_to = "Expression",
+               names_to = "Cell_line") %>%
+  mutate(Cell_line = factor(Cell_line,
+                            levels = c(
+                              "Otx2+/+", "Otx2+/- iN c5",
+                              "Otx2+/- iE c1", "Otx2+/- iE c10"))) %>%
+  group_by(Gene) %>%
+  t_test(Expression ~ Cell_line,
+         ref.group = "Otx2+/+",
+         p.adjust.method = "fdr") %>%
+    add_significance() %>%
+    add_xy_position()
+  
+Ohet_EpiLC_qPCR.stats
 
 # Create plot
 Ohet_EpiLC_qPCR.p <- Ohet_EpiLC_qPCR %>%
@@ -445,6 +592,21 @@ Ohet_EpiLC_qPCR.p <- Ohet_EpiLC_qPCR %>%
 # Load data
 Ohet_PGCLC_FACS <- read_csv("Data/OtxHet_iNiE_PGCLC_D6_SSEA_CD61.csv")
 
+# Calculate stats
+Ohet_PGCLC_FACS %>%
+  mutate(Dox = ifelse(Dox == 0, "-Dox", "+Dox"),
+         Cell_line = factor(Cell_line,
+                            levels = c("iN c5",
+                                       "iE c1",
+                                       "iE c10"))) %>%
+  group_by(Cell_line) %>%
+  t_test(Dbl_pos ~ Dox,
+         ref.group = "-Dox",
+         p.adjust.method = "none") %>%
+  adjust_pvalue(method = "fdr") %>%
+    add_significance() %>%
+    add_xy_position()
+
 # Create plot
 Ohet_PGCLC_FACS.p <- Ohet_PGCLC_FACS %>%
   mutate(Dox = ifelse(Dox == 0, "-Dox", "+Dox"),
@@ -473,6 +635,19 @@ Ohet_PGCLC_FACS.p <- Ohet_PGCLC_FACS %>%
 # Load data
 Ohet_PGCLC_dPEGFP <- read_csv("Data/OtxHet_iNiE_PGCLC_D6_dPEGFP.csv")
 
+# Calculate stats
+Ohet_PGCLC_dPEGFP %>%
+  mutate(Dox = ifelse(Dox == 0, "-Dox", "+Dox"),
+         Cell_line = factor(Cell_line,
+                            levels = c("iN c5",
+                                       "iE c1",
+                                       "iE c10"))) %>%
+  group_by(Cell_line) %>%
+  t_test(GFP ~ Dox, ref.group = "-Dox", p.adjust.method = "none") %>%
+  adjust_pvalue(method = "fdr") %>%
+    add_significance() %>%
+    add_xy_position()
+
 # Create plot
 Ohet_PGCLC_dPEGFP.p <- Ohet_PGCLC_dPEGFP %>%
   mutate(Dox = ifelse(Dox == 0, "-Dox", "+Dox"),
@@ -499,6 +674,18 @@ Ohet_PGCLC_dPEGFP.p <- Ohet_PGCLC_dPEGFP %>%
 ```{r}
 # Load data
 Ohet_PGCLC_qPCR <- read_csv("Data/OtxHet_iNiE_PGCPC_D6_qPCR.csv")
+
+# Calculate stats
+Ohet_PGCLC_qPCR %>%
+  separate(Sample, into = c("Cell_line", "Dox"), sep = " ") %>%
+  group_by(Cell_line, Gene) %>%
+  t_test(Expression ~ Dox,
+         ref.group = "-Dox",
+         p.adjust.method = "none") %>%
+  adjust_pvalue(method = "fdr") %>%
+    add_significance() %>%
+    add_xy_position()
+
 
 # Create plot
 
@@ -548,9 +735,31 @@ ggsave("Fig/Figure3.pdf", width = 188, height = 200, units = "mm")
 # Load data
 OHet_qPCR_D2 <- read_csv("Data/Otx2Het_iNiE_GK15_D2_qPCR.csv")
 
+# Calculate stats
+OHet_qPCR_D2 %>%
+  pivot_wider(names_from = "Sample",
+              values_from = "Expression") %>%
+  group_by(Gene) %>%
+  mutate(
+    across(`Tg2a -Dox`:`iEc10 +Dox`,
+           function(x) (x/mean(`Tg2a +Dox`) # Normalise to Tg2a +Dox sample
+           ))) %>% 
+  pivot_longer(cols = `Tg2a -Dox`:`iEc10 +Dox`,
+               values_to = "Expression",
+               names_to = "Sample") %>%
+  separate(Sample, into = c("Cell_line", "Dox"), sep = " ") %>%
+  group_by(Gene, Dox) %>%
+  t_test(Expression ~ Cell_line,
+         ref.group = "Tg2a",
+         p.adjust.method = "none") %>%
+  adjust_pvalue(method = "fdr") %>%
+    add_significance() %>%
+    add_xy_position()
+
 # Create plot
 OHet_qPCR_D2 %>%
-  pivot_wider(names_from = "Sample", values_from = "Expression") %>%
+  pivot_wider(names_from = "Sample",
+              values_from = "Expression") %>%
   group_by(Gene) %>%
   mutate(
     across(`Tg2a -Dox`:`iEc10 +Dox`,
@@ -589,7 +798,7 @@ OHet_qPCR_D2 %>%
   guides(fill=guide_legend(ncol=4)) +
   labs(fill = element_blank())
 
-ggsave("Fig/FigureS3.pdf", width = 19.9, height = 9, units = "cm")
+ggsave("Fig/FigureS3.pdf", width = 17.8, height = 7, units = "cm")
 ```
 
 ## Session info
