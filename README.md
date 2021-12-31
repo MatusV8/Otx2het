@@ -355,7 +355,7 @@ plot_grid(NULL, f2_patch, TgiNiE_qPCR_D6.p, TgiNiE_timecourse_PGC.p,
           nrow = 4, rel_heights  = c(30,  55, 49, 62))
 ```
 
-![](Analysis_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
 
 ``` r
 ggsave("Fig/Figure1.pdf", width = 20, height = 25, units = "cm")
@@ -413,7 +413,7 @@ plot_grid(NULL, TgiNiE_timecourse_NanogEsrrb.p,
           nrow =2 , labels = c("A", "B"), rel_heights = c(67,63))
 ```
 
-![](Analysis_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
 
 ``` r
 ggsave("Fig/FigureS1.pdf", width = 174, height = 156, units = "mm")
@@ -605,7 +605,7 @@ F2_patch2 <- plot_grid(NULL, NULL, TgiNO_SSEA1CD61.p , nrow = 1,
 plot_grid(F2_patch1, F2_patch2, nrow = 2, rel_heights = c(0.8,1))
 ```
 
-![](Analysis_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
 
 ``` r
 ggsave("Fig/Figure2.pdf", width = 267, height = 165, units = "mm")
@@ -661,7 +661,7 @@ TgiNO_valid %>%
   labs(fill = element_blank())
 ```
 
-![](Analysis_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
 
 ``` r
 ggsave("Fig/FigureS2.pdf", width = 173, height = 63, units = "mm")
@@ -919,7 +919,7 @@ plot_grid(
   nrow = 3, rel_heights = c(63, 58, 65))
 ```
 
-![](Analysis_files/figure-gfm/unnamed-chunk-16-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-16-1.png)<!-- -->
 
 ``` r
 ggsave("Fig/Figure3.pdf", width = 188, height = 200, units = "mm")
@@ -1013,7 +1013,7 @@ OHet_qPCR_D2 %>%
   labs(fill = element_blank())
 ```
 
-![](Analysis_files/figure-gfm/unnamed-chunk-17-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-17-1.png)<!-- -->
 
 ``` r
 ggsave("Fig/FigureS3.pdf", width = 17.8, height = 7, units = "cm")
